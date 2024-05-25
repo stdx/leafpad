@@ -169,9 +169,10 @@ public class NoteEditActivity extends AppCompatActivity {
                 note.setBody(bodyEdit.getText().toString());
 
                 if (note.getBody().isEmpty() && note.getTitle().isEmpty()) {
-                    Leaf.remove(this, note);
+                    //don't save empty notes
+                    this.leafStore.remove(note);
                 } else {
-                    Leaf.set(this, note);
+                    this.leafStore.save(note);
                     toolbar.setSubtitle(note.getTitle());
                     Toast.makeText(this, note.getTitle() + " " + resources.getString(R.string.action_note_saved), Toast.LENGTH_SHORT).show();
                 }
