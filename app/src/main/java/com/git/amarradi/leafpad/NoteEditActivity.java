@@ -1,7 +1,6 @@
 package com.git.amarradi.leafpad;
 
 import android.annotation.SuppressLint;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.os.Bundle;
