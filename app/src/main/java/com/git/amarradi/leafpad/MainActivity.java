@@ -38,6 +38,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     public SimpleAdapter adapter;
     public ListView listView;
 
+    private LeafStore leafStore;
 
 
 
@@ -48,6 +49,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        leafStore = new Leaf(this);
         setContentView(R.layout.activity_main);
 
         setupSharedPreferences();
@@ -160,8 +162,38 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     }
 
 
-    public void updateDataset() {
-        notes = Leaf.loadAll(this);
+    private void updateDataset() {
+        notes = leafStore.loadAll();
+
+
+      /* for (Note note : notes) {
+            if (note.getTitle().isEmpty()) {
+                String[] splits = note.getBody().split("");
+
+                StringBuilder stringBuilder = new StringBuilder();
+                int substringLength = 0;
+                for (int i = 0; i < splits.length; i++) {
+                    if (substringLength + splits[i].length() > 25) {
+                        break;
+                    }
+                    substringLength += splits[i].length();
+                    stringBuilder.append(splits[i]);
+                    if (i + 1 != splits.length) {
+                        if (!(substringLength + splits[i + 1].length() > 25)) {
+                            stringBuilder.append("");
+                        }
+                    }
+                }
+                if (!(note.getBody().length() == stringBuilder.toString().length())) {
+                    stringBuilder.append("...");
+                }
+                note.setTitle(stringBuilder.toString());
+            }
+            if (note.getDate().isEmpty() || note.getTime().isEmpty()) {
+                note.setNotetime();
+                note.setNotedate();
+            }
+        }*/
 
         data.clear();
         for (Note note : notes) {

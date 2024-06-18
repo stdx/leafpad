@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import android.os.Build;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -14,10 +16,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Locale;
+import java.util.List;
 import java.util.Set;
 
-public class Leaf {
+public class Leaf implements LeafStore {
 
     private final static String STORE_PREF = "leafstore";
     private final static String ID_KEY = "note_id_set";
@@ -28,16 +30,21 @@ public class Leaf {
     private final static String BODY_PREFIX = "note_body_";
     private final static String HIDE_PREFIX = "note_hide_";
 
-    public static ArrayList<Note> loadAll(Context context) {
+    private final Context context;
+
+
+    public Leaf(Context context) {
+        this.context = context;
+    }
+
+    @Override
+    public List<Note> loadAll() {
         SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
         ArrayList<Note> notes = new ArrayList<>();
-        Set<String> noteIds = sharedPreferences.getStringSet(ID_KEY, null);
+        Set<String> noteIds = findAllIds();
 
-
-        if (noteIds != null) {
-            for (String noteId : noteIds) {
-                notes.add(load(context, noteId));
-            }
+        for (String noteId : noteIds) {
+            notes.add(findById(noteId));
         }
 
         DateTimeFormatter d;
@@ -59,33 +66,23 @@ public class Leaf {
         return notes;
     }
 
-    public static Note load(Context context, String noteId) {
+    private @NonNull Set<String> findAllIds() {
         SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
-        return load(sharedPreferences, noteId);
-    }
-
-    public static Note load(SharedPreferences sharedPreferences, String noteId) {
-        String title = sharedPreferences.getString(TITLE_PREFIX + noteId, "");
-        String body = sharedPreferences.getString(BODY_PREFIX + noteId, "");
-        String noteDate = sharedPreferences.getString(ADDDATE+ noteId,"");
-        String noteTime = sharedPreferences.getString(ADDTIME + noteId,"");
-        String noteCreateDate = sharedPreferences.getString(CREATEDATE+ noteId,"");
-        boolean noteHide = sharedPreferences.getBoolean(HIDE_PREFIX + noteId,false);
-        return new Note(title, body, noteDate, noteTime, noteCreateDate, noteHide, noteId);
+        return findAllIds(sharedPreferences);
     }
 
     @SuppressLint("MutatingSharedPrefs")
-    public static void set(Context context, Note note) {
+    @Override
+    public Note save(Note note) {
         SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
+        Set<String> ids = findAllIds(sharedPreferences);
+        if(note.getId() == null || note.getId().isEmpty()) {
+            note.setId(Note.makeId());
+        }
 
-        Set<String> ids = sharedPreferences.getStringSet(ID_KEY, null);
 
-        if (ids == null) {
-            ids = new HashSet<>();
-            ids.add(note.getId());
-            editor.putStringSet(ID_KEY, ids);
-        } else if (!ids.contains(note.getId())) {
+        if (!ids.contains(note.getId())) {
             ids.add(note.getId());
             editor.putStringSet(ID_KEY, ids);
         }
@@ -96,16 +93,27 @@ public class Leaf {
         editor.putString(ADDTIME + note.getId(), note.getTime());
         editor.putBoolean(HIDE_PREFIX + note.getId(), !note.isHide());
         editor.apply();
+
+        return note;
     }
 
+    private static @NonNull Set<String> findAllIds(SharedPreferences sharedPreferences) {
+        Set<String> ids = sharedPreferences.getStringSet(ID_KEY, null);
+        if(ids == null) {
+            return new HashSet<>();
+        }
+        return ids;
+    }
+
+    @Override
     @SuppressLint("MutatingSharedPrefs")
-    public static void remove(Context context, Note note) {
+    public void remove(Note note) {
         SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
 
-        Set<String> ids = sharedPreferences.getStringSet(ID_KEY, null);
+        Set<String> ids = findAllIds(sharedPreferences);
 
-        if (ids == null) {
+        if (ids.isEmpty() || !ids.contains(note.getId()))  {
             return;
         }
 
@@ -117,5 +125,18 @@ public class Leaf {
         editor.remove(ADDTIME + note.getId());
         editor.remove(HIDE_PREFIX + note.getId());
         editor.apply();
+    }
+
+    @Override
+    public Note findById(String noteId) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
+        String title = sharedPreferences.getString(TITLE_PREFIX + noteId, "");
+        String body = sharedPreferences.getString(BODY_PREFIX + noteId, "");
+        String noteDate = sharedPreferences.getString(ADDDATE+ noteId,"");
+        String noteTime = sharedPreferences.getString(ADDTIME + noteId,"");
+        String noteCreateDate = sharedPreferences.getString(CREATEDATE+ noteId,"");
+        boolean noteHide = sharedPreferences.getBoolean(HIDE_PREFIX + noteId,false);
+
+        return new Note(title, body, noteDate, noteTime, noteCreateDate, noteHide, noteId);
     }
 }
