@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import android.os.Build;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -14,10 +16,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Locale;
+import java.util.List;
 import java.util.Set;
 
-public class Leaf {
+public class Leaf implements LeafStore {
 
     private final static String STORE_PREF = "leafstore";
     private final static String ID_KEY = "note_id_set";
@@ -28,17 +30,25 @@ public class Leaf {
     private final static String BODY_PREFIX = "note_body_";
     private final static boolean HIDE = false;
 
-    public static ArrayList<Note> loadAll(Context context, boolean includeHidden) {
+    private final Context context;
+
+    public Leaf(Context context) {
+        this.context = context;
+    }
+
+    @Override
+    public List<Note> loadAll(boolean includeHidden) {
         SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
         ArrayList<Note> notes = new ArrayList<>();
-        Set<String> noteIds = sharedPreferences.getStringSet(ID_KEY, null);
-        if (noteIds != null) {
-            for (String noteId : noteIds) {
-                Note note = load(context, noteId);
-               // Log.d("Leaf", "Loaded Note: " + note.getTitle() + ", Hide: " + note.isHide());
-                if (!note.isHide() || includeHidden) {
-                    notes.add(note);
-                }
+        Set<String> noteIds = findAllIds();
+
+        for (String noteId : noteIds) {
+            Note note = findById(noteId);
+            notes.add(note);
+
+            // Log.d("Leaf", "Loaded Note: " + note.getTitle() + ", Hide: " + note.isHide());
+            if (!note.isHide() || includeHidden) {
+                notes.add(note);
             }
         }
 
@@ -61,41 +71,24 @@ public class Leaf {
         return notes;
     }
 
-    public static Note load(Context context, String noteId) {
+    private @NonNull Set<String> findAllIds() {
         SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
-        boolean noteHide;
-        if (sharedPreferences.contains(HIDE + noteId)) {
-            noteHide = sharedPreferences.getBoolean(HIDE + noteId, false);
-            sharedPreferences.edit().remove(HIDE + noteId).putBoolean(HIDE + "_" + noteId, noteHide).apply();
-           // Log.d("Leaf", "Migrating old hide key for noteId: " + noteId + ", Value: " + noteHide);
-        }
-
-        return load(sharedPreferences, noteId);
+        return findAllIds(sharedPreferences);
     }
 
-    public static Note load(SharedPreferences sharedPreferences, String noteId) {
-        String title = sharedPreferences.getString(TITLE_PREFIX + noteId, "");
-        String body = sharedPreferences.getString(BODY_PREFIX + noteId, "");
-        String noteDate = sharedPreferences.getString(ADDDATE+ noteId,"");
-        String noteTime = sharedPreferences.getString(ADDTIME + noteId,"");
-        String noteCreateDate = sharedPreferences.getString(CREATEDATE+ noteId,"");
-        //boolean noteHide = sharedPreferences.getBoolean(HIDE + noteId,false); //der alte Schlüssel bis version 1.14
-        boolean noteHide = sharedPreferences.getBoolean(HIDE + "_" + noteId, false);
-        return new Note(title, body, noteDate, noteTime, noteCreateDate, noteHide, noteId);
-    }
 
     @SuppressLint("MutatingSharedPrefs")
-    public static void set(Context context, Note note) {
+    @Override
+    public Note save(Note note) {
         SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
+        Set<String> ids = findAllIds(sharedPreferences);
+        if(note.getId() == null || note.getId().isEmpty()) {
+            note.setId(Note.makeId());
+        }
 
-        Set<String> ids = sharedPreferences.getStringSet(ID_KEY, null);
 
-        if (ids == null) {
-            ids = new HashSet<>();
-            ids.add(note.getId());
-            editor.putStringSet(ID_KEY, ids);
-        } else if (!ids.contains(note.getId())) {
+        if (!ids.contains(note.getId())) {
             ids.add(note.getId());
             editor.putStringSet(ID_KEY, ids);
         }
@@ -120,15 +113,26 @@ public class Leaf {
 
      //   Log.d("Leaf", "Saving Note: Title = " + note.getTitle() + ", Hide = " + note.isHide());
         editor.apply();
+
+        return note;
     }
 
+    private static @NonNull Set<String> findAllIds(SharedPreferences sharedPreferences) {
+        Set<String> ids = sharedPreferences.getStringSet(ID_KEY, null);
+        if(ids == null) {
+            return new HashSet<>();
+        }
+        return ids;
+    }
+
+    @Override
     @SuppressLint("MutatingSharedPrefs")
-    public static void remove(Context context, Note note) {
+    public void remove(Note note) {
         SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
-        Set<String> ids = sharedPreferences.getStringSet(ID_KEY, null);
+        Set<String> ids = findAllIds(sharedPreferences);
 
-        if (ids == null) {
+        if (ids.isEmpty() || !ids.contains(note.getId()))  {
             return;
         }
 
@@ -141,5 +145,26 @@ public class Leaf {
         editor.remove(HIDE + note.getId());
         editor.remove(HIDE + "_" + note.getId());
         editor.apply();
+    }
+
+    @Override
+    public Note findById(String noteId) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences(STORE_PREF, Context.MODE_PRIVATE);
+        String title = sharedPreferences.getString(TITLE_PREFIX + noteId, "");
+        String body = sharedPreferences.getString(BODY_PREFIX + noteId, "");
+        String noteDate = sharedPreferences.getString(ADDDATE+ noteId,"");
+        String noteTime = sharedPreferences.getString(ADDTIME + noteId,"");
+        String noteCreateDate = sharedPreferences.getString(CREATEDATE+ noteId,"");
+        if (sharedPreferences.contains(HIDE + noteId)) {
+            boolean noteHide = sharedPreferences.getBoolean(HIDE + noteId, false);
+            sharedPreferences.edit()
+                    .remove(HIDE + noteId)
+                    .putBoolean(HIDE + "_" + noteId, noteHide)
+                .apply();
+            // Log.d("Leaf", "Migrating old hide key for noteId: " + noteId + ", Value: " + noteHide);
+        }
+        boolean noteHide = sharedPreferences.getBoolean(HIDE + "_" + noteId, false);
+
+        return new Note(title, body, noteDate, noteTime, noteCreateDate, noteHide, noteId);
     }
 }

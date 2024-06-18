@@ -28,10 +28,14 @@ public class NoteEditActivity extends AppCompatActivity {
     private Resources resources;
     private MaterialSwitch visibleSwitch;
 
+    private LeafStore leafStore;
+
+
     @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        leafStore = new Leaf(this);
 
         setContentView(R.layout.activity_note_edit);
         toolbar = findViewById(R.id.toolbar);
@@ -41,11 +45,8 @@ public class NoteEditActivity extends AppCompatActivity {
         Intent intent = getIntent();
         String noteId = intent.getStringExtra(MainActivity.EXTRA_NOTE_ID);
         if (Objects.equals(getIntent().getAction(), "android.intent.action.VIEW")) {
-            note = Leaf.load(this, Note.makeId());
-        } else {
-            note = Leaf.load(this, noteId);
+            note = leafStore.findById(Note.makeId());
         }
-
         resources = getResources();
         Objects.requireNonNull(getSupportActionBar()).setDisplayHomeAsUpEnabled(true);
 
@@ -53,13 +54,11 @@ public class NoteEditActivity extends AppCompatActivity {
         bodyEdit = findViewById(R.id.body_edit);
         visibleSwitch = findViewById(R.id.visible_switch);
 
-        note = Leaf.load(this, noteId);
+        note = leafStore.findById(noteId);
 
         toggleView();
 
-
         if (isNewEntry(note, intent)) {
-            note = Leaf.load(this, Note.makeId());
             note.setHide(false);
             toggleView();
             toolbar.setSubtitle(R.string.new_note);
@@ -128,13 +127,11 @@ public class NoteEditActivity extends AppCompatActivity {
         note.setBody(bodyEdit.getText().toString());
 
         if (note.getBody().isEmpty() && note.getTitle().isEmpty()) {
-            //don't save empty notes
-            Leaf.remove(this, note);
+            leafStore.remove(note);
             note = null;
             finish();
         } else {
-            Leaf.set(this, note);
-        }
+            leafStore.save(note);}
     }
 
     @Override
@@ -192,7 +189,7 @@ public class NoteEditActivity extends AppCompatActivity {
     }
 
     private void removeNote() {
-        Leaf.remove(this, note);
+        leafStore.remove(note);
         note = null;
         finish();
     }

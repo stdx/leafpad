@@ -37,6 +37,10 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     public ListView listView;
     private boolean showHidden = false;
 
+    private LeafStore leafStore;
+
+
+
     List<Map<String, String>> data = new ArrayList<>();
 
     @SuppressLint("RestrictedApi")
@@ -44,6 +48,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        leafStore = new Leaf(this);
         setContentView(R.layout.activity_main);
 
         setupSharedPreferences();
@@ -198,7 +203,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
 
     public void updateDataset() {
         //Log.d("MainActivity", "updateDataset() called");
-        notes = Leaf.loadAll(this, showHidden);
+        notes = leafStore.loadAll(showHidden);
         data.clear();
         for (Note note : notes) {
             if (showHidden && note.isHide()) {
